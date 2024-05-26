@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import re
+import json
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union
 
 from .user import User
 from .utils import find_dict, timestamp_to_datetime
@@ -223,523 +224,74 @@ class Tweet:
                 'url' in binding_values['thumbnail_image_original'
                                         ]['image_value']
             ):
-                self.thumbnail_url = binding_values['thumbnail_image_original'
-                                                    ]['image_value']['url']
+                self.thumbnail_url = binding_values[
+                    'thumbnail_image_original'
+                ]['image_value']['url']
+
+        self.created_at_datetime = timestamp_to_datetime(self.created_at)
+
+        reply_to = legacy.get('in_reply_to_status_id_str')
+        self.reply_to = []
+        if reply_to:
+            self.reply_to.append(reply_to)
+
+        self._rest_id = data['rest_id']
 
     @property
-    def created_at_datetime(self) -> datetime:
-        return timestamp_to_datetime(self.created_at)
+    def client(self):
+        return self._client
 
-    @property
-    def poll(self) -> Poll:
-        return self._poll_data and Poll(self._client, self._poll_data, self)
+    @client.setter
+    def client(self, value):
+        self._client = value
 
-    def to_dict(self):
-        return {
-            "id": self.id,
-            "created_at": self.created_at,
-            "created_at_datetime": self.created_at_datetime.isoformat(),
-            "user": self.user.__dict__,
-            "text": self.text,
-            "lang": self.lang,
-            "in_reply_to": self.in_reply_to,
-            "is_quote_status": self.is_quote_status,
-            "quote": self.quote.to_dict() if self.quote else None,
-            "retweeted_tweet": self.retweeted_tweet,
-            "possibly_sensitive": self.possibly_sensitive,
-            "possibly_sensitive_editable": self.possibly_sensitive_editable,
-            "quote_count": self.quote_count,
-            "media": self.media,
-            "reply_count": self.reply_count,
-            "favorite_count": self.favorite_count,
-            "favorited": self.favorited,
-            "view_count": self.view_count,
-            "retweet_count": self.retweet_count,
-            "editable_until_msecs": self.editable_until_msecs,
-            "is_translatable": self.is_translatable,
-            "is_edit_eligible": self.is_edit_eligible,
-            "edits_remaining": self.edits_remaining,
-            "state": self.state,
-            "replies": [reply.to_dict() for reply in self.replies] if self.replies else None,
-            "reply_to": [reply.to_dict() for reply in self.reply_to] if self.reply_to else None,
-            "related_tweets": [tweet.to_dict() for tweet in self.related_tweets] if self.related_tweets else None,
-            "hashtags": self.hashtags,
-            "poll": self.poll.__dict__ if self.poll else None,
-            "has_card": self.has_card,
-            "thumbnail_title": self.thumbnail_title,
-            "thumbnail_url": self.thumbnail_url,
-            "urls": self.urls,
-            "full_text": self.full_text
+    def __repr__(self) -> str:
+        return f"<Tweet id={self.id} text='{self.text}'>"
+
+    def to_json(self) -> str:
+        """
+        Convert the Tweet object to a JSON string.
+        """
+        tweet_dict = {
+            'id': self.id,
+            'created_at': self.created_at,
+            'created_at_datetime': self.created_at_datetime.isoformat(),
+            'user': self.user.to_dict() if self.user else None,
+            'text': self.text,
+            'lang': self.lang,
+            'in_reply_to': self.in_reply_to,
+            'is_quote_status': self.is_quote_status,
+            'quote': self.quote.to_dict() if self.quote else None,
+            'retweeted_tweet': self.retweeted_tweet.to_dict() if self.retweeted_tweet else None,
+            'possibly_sensitive': self.possibly_sensitive,
+            'possibly_sensitive_editable': self.possibly_sensitive_editable,
+            'quote_count': self.quote_count,
+            'media': self.media,
+            'reply_count': self.reply_count,
+            'favorite_count': self.favorite_count,
+            'favorited': self.favorited,
+            'view_count': self.view_count,
+            'retweet_count': self.retweet_count,
+            'editable_until_msecs': self.editable_until_msecs,
+            'is_translatable': self.is_translatable,
+            'is_edit_eligible': self.is_edit_eligible,
+            'edits_remaining': self.edits_remaining,
+            'state': self.state,
+            'replies': [reply.to_dict() for reply in self.replies.results] if self.replies else None,
+            'reply_to': [reply.to_dict() for reply in self.reply_to] if self.reply_to else None,
+            'related_tweets': [tweet.to_dict() for tweet in self.related_tweets] if self.related_tweets else None,
+            'hashtags': self.hashtags,
+            'poll': self.poll.to_dict() if self.poll else None,
+            'has_card': self.has_card,
+            'thumbnail_title': self.thumbnail_title,
+            'thumbnail_url': self.thumbnail_url,
+            'urls': self.urls,
+            'full_text': self.full_text
         }
-    
-    def delete(self) -> Response:
-        """Deletes the tweet.
+        return json.dumps(tweet_dict, ensure_ascii=False, indent=4)
 
-        Returns
-        -------
-        :class:`httpx.Response`
-            Response returned from twitter api.
-
-        Examples
-        --------
-        >>> tweet.delete()
+    def to_dict(self) -> dict:
         """
-        return self._client.delete_tweet(self.id)
-
-    def favorite(self) -> Response:
+        Convert the Tweet object to a dictionary.
         """
-        Favorites the tweet.
-
-        Returns
-        -------
-        :class:`httpx.Response`
-            Response returned from twitter api.
-
-        See Also
-        --------
-        Client.favorite_tweet
-        """
-        return self._client.favorite_tweet(self.id)
-
-    def unfavorite(self) -> Response:
-        """
-        Favorites the tweet.
-
-        Returns
-        -------
-        :class:`httpx.Response`
-            Response returned from twitter api.
-
-        See Also
-        --------
-        Client.unfavorite_tweet
-        """
-        return self._client.unfavorite_tweet(self.id)
-
-    def retweet(self) -> Response:
-        """
-        Retweets the tweet.
-
-        Returns
-        -------
-        :class:`httpx.Response`
-            Response returned from twitter api.
-
-        See Also
-        --------
-        Client.retweet
-        """
-        return self._client.retweet(self.id)
-
-    def delete_retweet(self) -> Response:
-        """
-        Deletes the retweet.
-
-        Returns
-        -------
-        :class:`httpx.Response`
-            Response returned from twitter api.
-
-        See Also
-        --------
-        Client.delete_retweet
-        """
-        return self._client.delete_retweet(self.id)
-
-    def bookmark(self) -> Response:
-        """
-        Adds the tweet to bookmarks.
-
-        Returns
-        -------
-        :class:`httpx.Response`
-            Response returned from twitter api.
-
-        See Also
-        --------
-        Client.bookmark_tweet
-        """
-        return self._client.bookmark_tweet(self.id)
-
-    def delete_bookmark(self) -> Response:
-        """
-        Removes the tweet from bookmarks.
-
-        Returns
-        -------
-        :class:`httpx.Response`
-            Response returned from twitter api.
-
-        See Also
-        --------
-        Client.delete_bookmark
-        """
-        return self._client.delete_bookmark(self.id)
-
-    def reply(
-        self,
-        text: str = '',
-        media_ids: list[str] | None = None,
-        **kwargs
-    ) -> Tweet:
-        """
-        Replies to the tweet.
-
-        Parameters
-        ----------
-        text : :class:`str`, default=''
-            The text content of the reply.
-        media_ids : list[:class:`str`], default=None
-            A list of media IDs or URIs to attach to the reply.
-            Media IDs can be obtained by using the `upload_media` method.
-
-        Returns
-        -------
-        :class:`Tweet`
-            The created tweet.
-
-        Examples
-        --------
-        >>> tweet_text = 'Example text'
-        >>> media_ids = [
-        ...     client.upload_media('image1.png'),
-        ...     client.upload_media('image2.png')
-        ... ]
-        >>> tweet.reply(
-        ...     tweet_text,
-        ...     media_ids=media_ids
-        ... )
-
-        See Also
-        --------
-        `Client.upload_media`
-        """
-        return self._client.create_tweet(
-            text, media_ids, reply_to=self.id, **kwargs
-        )
-
-    def get_retweeters(
-        self, count: str = 40, cursor: str | None = None
-    ) -> Result[User]:
-        """
-        Retrieve users who retweeted the tweet.
-
-        Parameters
-        ----------
-        count : :class:`int`, default=40
-            The maximum number of users to retrieve.
-        cursor : :class:`str`, default=None
-            A string indicating the position of the cursor for pagination.
-
-        Returns
-        -------
-        Result[:class:`User`]
-            A list of users who retweeted the tweet.
-
-        Examples
-        --------
-        >>> tweet_id = '...'
-        >>> retweeters = tweet.get_retweeters()
-        >>> print(retweeters)
-        [<User id="...">, <User id="...">, ..., <User id="...">]
-
-        >>> more_retweeters = retweeters.next()  # Retrieve more retweeters.
-        >>> print(more_retweeters)
-        [<User id="...">, <User id="...">, ..., <User id="...">]
-        """
-        return self._client.get_retweeters(self.id, count, cursor)
-
-    def get_favoriters(
-        self, count: str = 40, cursor: str | None = None
-    ) -> Result[User]:
-        """
-        Retrieve users who favorited a specific tweet.
-
-        Parameters
-        ----------
-        tweet_id : :class:`str`
-            The ID of the tweet.
-        count : int, default=40
-            The maximum number of users to retrieve.
-        cursor : :class:`str`, default=None
-            A string indicating the position of the cursor for pagination.
-
-        Returns
-        -------
-        Result[:class:`User`]
-            A list of users who favorited the tweet.
-
-        Examples
-        --------
-        >>> tweet_id = '...'
-        >>> favoriters = tweet.get_favoriters()
-        >>> print(favoriters)
-        [<User id="...">, <User id="...">, ..., <User id="...">]
-
-        >>> more_favoriters = favoriters.next()  # Retrieve more favoriters.
-        >>> print(more_favoriters)
-        [<User id="...">, <User id="...">, ..., <User id="...">]
-        """
-        return self._client.get_favoriters(self.id, count, cursor)
-
-    def get_similar_tweets(self) -> list[Tweet]:
-        """
-        Retrieves tweets similar to the tweet (Twitter premium only).
-
-        Returns
-        -------
-        list[:class:`Tweet`]
-            A list of Tweet objects representing tweets
-            similar to the tweet.
-        """
-        return self._client.get_similar_tweets(self.id)
-
-    def update(self) -> None:
-        new = self._client.get_tweet_by_id(self.id)
-        self.__dict__.update(new.__dict__)
-
-    def __repr__(self) -> str:
-        return f'<Tweet id="{self.id}">'
-
-    def __eq__(self, __value: object) -> bool:
-        return isinstance(__value, Tweet) and self.id == __value.id
-
-    def __ne__(self, __value: object) -> bool:
-        return not self == __value
-
-
-def tweet_from_data(client: Client, data: dict) -> Tweet:
-    tweet_data_ = find_dict(data, 'result', True)
-    if not tweet_data_:
-        return None
-    tweet_data = tweet_data_[0]
-
-    if tweet_data.get('__typename') == 'TweetTombstone':
-        return None
-    if 'tweet' in tweet_data:
-        tweet_data = tweet_data['tweet']
-    if 'core' not in tweet_data:
-        return None
-    if 'result' not in tweet_data['core']['user_results']:
-        return None
-    if 'legacy' not in tweet_data:
-        return None
-
-    user_data = tweet_data['core']['user_results']['result']
-    return Tweet(client, tweet_data, User(client, user_data))
-
-
-class ScheduledTweet:
-    def __init__(self, client: Client, data: dict) -> None:
-        self._client = client
-
-        self.id = data['rest_id']
-        self.execute_at: int = data['scheduling_info']['execute_at']
-        self.state: str = data['scheduling_info']['state']
-        self.type: str = data['tweet_create_request']['type']
-        self.text: str = data['tweet_create_request']['status']
-        self.media = [i['media_info'] for i in data.get('media_entities', [])]
-
-    def delete(self) -> Response:
-        """
-        Delete the scheduled tweet.
-
-        Returns
-        -------
-        :class:`httpx.Response`
-            Response returned from twitter api.
-        """
-        return self._client.delete_scheduled_tweet(self.id)
-
-    def __repr__(self) -> str:
-        return f'<ScheduledTweet id="{self.id}">'
-
-    def __eq__(self, __value: object) -> bool:
-        return isinstance(__value, ScheduledTweet) and self.id == __value.id
-
-    def __ne__(self, __value: object) -> bool:
-        return not self == __value
-
-
-class TweetTombstone:
-    def __init__(self, client: Client, tweet_id: str, data: dict) -> None:
-        self._client = client
-        self.id = tweet_id
-        self.text: str = data['text']['text']
-
-    def __repr__(self) -> str:
-        return f'<TweetTombstone id="{self.id}">'
-
-    def __eq__(self, __value: object) -> bool:
-        return isinstance(__value, TweetTombstone) and self.id == __value.id
-
-    def __ne__(self, __value: object) -> bool:
-        return not self == __value
-
-
-class Poll:
-    """Represents a poll associated with a tweet.
-
-    Attributes
-    ----------
-    tweet : :class:`Tweet`
-        The tweet associated with the poll.
-    id : :class:`str`
-        The unique identifier of the poll.
-    name : :class:`str`
-        The name of the poll.
-    choices : list[:class:`dict`]
-        A list containing dictionaries representing poll choices.
-        Each dictionary contains 'label' and 'count' keys
-        for choice label and count.
-    duration_minutes : :class:`int`
-        The duration of the poll in minutes.
-    end_datetime_utc : :class:`str`
-        The end date and time of the poll in UTC format.
-    last_updated_datetime_utc : :class:`str`
-        The last updated date and time of the poll in UTC format.
-    selected_choice : :class:`str` | None
-        Number of the selected choice.
-    """
-
-    def __init__(
-        self, client: Client, data: dict, tweet: Tweet | None = None
-    ) -> None:
-        self._client = client
-        self.tweet = tweet
-
-        legacy = data['legacy']
-        binding_values = legacy['binding_values']
-
-        if isinstance(legacy['binding_values'], list):
-            binding_values = {
-                i.get('key'): i.get('value')
-                for i in legacy['binding_values']
-            }
-
-        self.id: str = data['rest_id']
-        self.name: str = legacy['name']
-
-        choices_number = int(re.findall(
-            r'poll(\d)choice_text_only', self.name
-        )[0])
-        choices = []
-
-        for i in range(1, choices_number + 1):
-            choice_label = binding_values[f'choice{i}_label']
-            choice_count = binding_values[f'choice{i}_count']
-            choices.append({
-                'number': str(i),
-                'label': choice_label['string_value'],
-                'count': choice_count.get('string_value', '0')
-            })
-
-        self.choices = choices
-
-        duration_minutes = binding_values['duration_minutes']['string_value']
-        self.duration_minutes = int(duration_minutes)
-
-        end = binding_values['end_datetime_utc']['string_value']
-        updated = binding_values['last_updated_datetime_utc']['string_value']
-        self.end_datetime_utc: str = end
-        self.last_updated_datetime_utc: str = updated
-
-        counts_are_final = binding_values['counts_are_final']['boolean_value']
-        self.counts_are_final: bool = counts_are_final
-
-        if 'selected_choice' in binding_values:
-            selected_choice = binding_values['selected_choice']['string_value']
-            self.selected_choice: str = selected_choice
-        else:
-            self.selected_choice = None
-
-    def vote(self, selected_choice: str) -> Poll:
-        """
-        Vote on the poll with the specified selected choice.
-
-        Parameters
-        ----------
-        selected_choice : :class:`str`
-            The label of the selected choice for the vote.
-
-        Returns
-        -------
-        :class:`Poll`
-            The Poll object representing the updated poll after voting.
-        """
-        return self._client.vote(
-            selected_choice,
-            self.id,
-            self.tweet.id,
-            self.name
-        )
-
-    def __repr__(self) -> str:
-        return f'<Poll id="{self.id}">'
-
-    def __eq__(self, __value: object) -> bool:
-        return isinstance(__value, Poll) and self.id == __value.id
-
-    def __ne__(self, __value: object) -> bool:
-        return not self == __value
-
-
-class CommunityNote:
-    """Represents a community note.
-
-    Attributes
-    ----------
-    id : :class:`str`
-        The ID of the community note.
-    text : :class:`str`
-        The text content of the community note.
-    misleading_tags : list[:class:`str`]
-        A list of tags indicating misleading information.
-    trustworthy_sources : :class:`bool`
-        Indicates if the sources are trustworthy.
-    helpful_tags : list[:class:`str`]
-        A list of tags indicating helpful information.
-    created_at : :class:`int`
-        The timestamp when the note was created.
-    can_appeal : :class:`bool`
-        Indicates if the note can be appealed.
-    appeal_status : :class:`str`
-        The status of the appeal.
-    is_media_note : :class:`bool`
-        Indicates if the note is related to media content.
-    media_note_matches : :class:`str`
-        Matches related to media content.
-    birdwatch_profile : :class:`dict`
-        Birdwatch profile associated with the note.
-    tweet_id : :class:`str`
-        The ID of the tweet associated with the note.
-    """
-    def __init__(self, client: Client, data: dict) -> None:
-        self._client = client
-        self.id: str = data['rest_id']
-
-        data_v1 = data['data_v1']
-        self.text: str = data_v1['summary']['text']
-        self.misleading_tags: list[str] = data_v1.get('misleading_tags')
-        self.trustworthy_sources: bool = data_v1.get('trustworthy_sources')
-        self.helpful_tags: list[str] = data.get('helpful_tags')
-        self.created_at: int = data.get('created_at')
-        self.can_appeal: bool = data.get('can_appeal')
-        self.appeal_status: str = data.get('appeal_status')
-        self.is_media_note: bool = data.get('is_media_note')
-        self.media_note_matches: str = data.get('media_note_matches')
-        self.birdwatch_profile: dict = data.get('birdwatch_profile')
-        self.tweet_id: str = data['tweet_results']['result']['rest_id']
-
-    def update(self) -> None:
-        new = self._client.get_community_note(self.id)
-        self.__dict__.update(new.__dict__)
-
-    def __repr__(self) -> str:
-        return f'<CommunityNote id="{self.id}">'
-
-    def __eq__(self, __value: object) -> bool:
-        return isinstance(__value, CommunityNote) and self.id == __value.id
-
-    def __ne__(self, __value: object) -> bool:
-        return not self == __value
+        return json.loads(self.to_json())
