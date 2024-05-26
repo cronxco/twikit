@@ -234,6 +234,44 @@ class Tweet:
     def poll(self) -> Poll:
         return self._poll_data and Poll(self._client, self._poll_data, self)
 
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "created_at": self.created_at,
+            "created_at_datetime": self.created_at_datetime.isoformat(),
+            "user": self.user.__dict__,
+            "text": self.text,
+            "lang": self.lang,
+            "in_reply_to": self.in_reply_to,
+            "is_quote_status": self.is_quote_status,
+            "quote": self.quote.to_dict() if self.quote else None,
+            "retweeted_tweet": self.retweeted_tweet,
+            "possibly_sensitive": self.possibly_sensitive,
+            "possibly_sensitive_editable": self.possibly_sensitive_editable,
+            "quote_count": self.quote_count,
+            "media": self.media,
+            "reply_count": self.reply_count,
+            "favorite_count": self.favorite_count,
+            "favorited": self.favorited,
+            "view_count": self.view_count,
+            "retweet_count": self.retweet_count,
+            "editable_until_msecs": self.editable_until_msecs,
+            "is_translatable": self.is_translatable,
+            "is_edit_eligible": self.is_edit_eligible,
+            "edits_remaining": self.edits_remaining,
+            "state": self.state,
+            "replies": [reply.to_dict() for reply in self.replies] if self.replies else None,
+            "reply_to": [reply.to_dict() for reply in self.reply_to] if self.reply_to else None,
+            "related_tweets": [tweet.to_dict() for tweet in self.related_tweets] if self.related_tweets else None,
+            "hashtags": self.hashtags,
+            "poll": self.poll.__dict__ if self.poll else None,
+            "has_card": self.has_card,
+            "thumbnail_title": self.thumbnail_title,
+            "thumbnail_url": self.thumbnail_url,
+            "urls": self.urls,
+            "full_text": self.full_text
+        }
+    
     def delete(self) -> Response:
         """Deletes the tweet.
 
